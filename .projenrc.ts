@@ -8,10 +8,17 @@ const project = new cdk.JsiiProject({
   projenrcTs: true,
   repositoryUrl: 'https://github.com/corymhall/ci-mgmt-projen.git',
   projenDevDependency: false,
+  prettier: true,
+  prettierOptions: {
+    settings: {
+      singleQuote: true,
+    },
+  },
+  eslintOptions: {
+    dirs: [],
+    prettier: true,
+  },
 
   deps: ['projen'],
-  // description: undefined,  /* The description is just a string that helps people understand the purpose of the package. */
-  // devDeps: [],             /* Build dependencies for this module. */
-  // packageName: undefined,  /* The "name" in package.json. */
 });
 project.synth();
