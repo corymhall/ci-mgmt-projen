@@ -7,8 +7,9 @@ const project = new cdk.JsiiProject({
   name: 'ci-mgmt-projen',
   projenrcTs: true,
   repositoryUrl: 'https://github.com/corymhall/ci-mgmt-projen.git',
+  projenDevDependency: false,
 
-  // deps: [],                /* Runtime dependencies of this module. */
+  deps: ['projen'],
   // description: undefined,  /* The description is just a string that helps people understand the purpose of the package. */
   // devDeps: [],             /* Build dependencies for this module. */
   // packageName: undefined,  /* The "name" in package.json. */
