@@ -19,11 +19,6 @@
       "type": "build"
     },
     {
-      "name": "commit-and-tag-version",
-      "version": "^12",
-      "type": "build"
-    },
-    {
       "name": "eslint-config-prettier",
       "type": "build"
     },
@@ -91,6 +86,14 @@
     {
       "name": "typescript",
       "type": "build"
+    },
+    {
+      "name": "constructs",
+      "type": "peer"
+    },
+    {
+      "name": "projen",
+      "type": "peer"
     },
     {
       "name": "projen",

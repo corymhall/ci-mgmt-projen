@@ -1,67 +1,40 @@
 import { JobStep } from 'projen/lib/github/workflows-model';
-export enum Tool {
-  GO = 'go',
-  PULUMI_CLI = 'pulumicli',
-  PULUMI_CTL = 'pulumictl',
-  SCHEMA_TOOLS = 'schema-tools',
-  NODEJS = 'nodejs',
-  PYTHON = 'python',
-  DOTNET = 'dotnet',
-  JAVA = 'java',
-}
 
 export interface ToolVersions {
-  go?: string;
-  pulumiCli?: string;
-  pulumiCtl?: string;
-  schemaTools?: string;
-  nodejs?: string;
-  python?: string;
-  dotnet?: string;
-  java?: string;
-  gradle?: string;
+  readonly go?: string;
+  readonly pulumiCli?: string;
+  readonly pulumiCtl?: string;
+  readonly schemaTools?: string;
+  readonly nodejs?: string;
+  readonly python?: string;
+  readonly dotnet?: string;
+  readonly java?: string;
+  readonly gradle?: string;
 }
 
-export interface SetupToolsActionVersions {
-  setupGo?: string; // actions/setup-go@<sha>
-  installGhRelease?: string; // jaxxstorm/action-install-gh-release@<sha>
-  pulumiActions?: string; // pulumi/actions@<sha>
-  setupNode?: string; // actions/setup-node@<sha>
-  setupDotnet?: string; // actions/setup-dotnet@<sha>
-  setupPython?: string; // actions/setup-python@<sha>
-  setupJava?: string; // actions/setup-java@<sha>
-  setupGradle?: string; // gradle/actions/setup-gradle@<sha>
-  setupKubectl?: string; // azure/setup-kubectl@v4
-}
-
-export interface ProviderActionVersions {
-  uploadArtifact?: string; // actions/upload-artifact@<sha>
-  downloadArtifact?: string; // actions/download-artifact@<sha>
+export interface SetupToolsOptions {
+  readonly toolVersions?: ToolVersions;
+  readonly tools?: string[];
+  readonly cacheGo?: boolean;
+  readonly installKubectl?: boolean;
 }
 
 export class ProviderActions {
   /**
    * Returns steps to mirror base/.github/actions/setup-tools.
    */
-  public static setupTools(options: {
-    actionVersions?: SetupToolsActionVersions;
-    toolVersions?: ToolVersions;
-    tools?: Tool[];
-    cacheGo?: boolean;
-    installKubectl?: boolean;
-  }): JobStep[] {
-    const av = options.actionVersions ?? {};
+  public static setupTools(options: SetupToolsOptions): JobStep[] {
     const tv = options.toolVersions ?? {};
     const requested = new Set(options.tools ?? []);
     const includeAll = requested.size === 0;
-    const want = (tool: Tool) => includeAll || requested.has(tool);
+    const want = (tool: string) => includeAll || requested.has(tool);
 
     const steps: JobStep[] = [];
 
-    if (want(Tool.GO)) {
+    if (want('go')) {
       steps.push({
         name: 'Install Go',
-        uses: av.setupGo ?? 'actions/setup-go@v5',
+        uses: 'actions/setup-go@v5',
         with: {
           'go-version': tv.go ?? '1.21.x',
           'cache-dependency-path': [
@@ -75,74 +48,72 @@ export class ProviderActions {
         },
       });
     }
-    if (want(Tool.PULUMI_CTL)) {
+    if (want('pulumictl')) {
       steps.push({
         name: 'Install pulumictl',
-        uses:
-          av.installGhRelease ?? 'jaxxstorm/action-install-gh-release@v2.1.0',
+        uses: 'jaxxstorm/action-install-gh-release@v2.1.0',
         with: {
           tag: tv.pulumiCtl ?? '',
           repo: 'pulumi/pulumictl',
         },
       });
     }
-    if (want(Tool.PULUMI_CLI)) {
+    if (want('pulumicli')) {
       steps.push({
         name: 'Install Pulumi CLI',
-        uses: av.pulumiActions ?? 'pulumi/actions@v6',
+        uses: 'pulumi/actions@v6',
         with: {
           'pulumi-version': tv.pulumiCli ?? 'dev',
         },
       });
     }
-    if (want(Tool.SCHEMA_TOOLS)) {
+    if (want('schema-tools')) {
       steps.push({
         name: 'Install Schema Tools',
-        uses:
-          av.installGhRelease ?? 'jaxxstorm/action-install-gh-release@v2.1.0',
+        uses: 'jaxxstorm/action-install-gh-release@v2.1.0',
         with: { repo: 'pulumi/schema-tools' },
       });
     }
     if (options.installKubectl) {
       steps.push({
         name: 'Install kubectl',
-        uses: av.setupKubectl ?? 'azure/setup-kubectl@v4',
+        uses: 'azure/setup-kubectl@v4',
         with: { version: 'latest' },
         id: 'install',
       });
     }
-    if (want(Tool.NODEJS)) {
+    if (want('nodejs')) {
       steps.push({
         name: 'Setup Node',
-        uses: av.setupNode ?? 'actions/setup-node@v4',
+        uses: 'actions/setup-node@v4',
         with: {
           'node-version': tv.nodejs ?? '20.x',
           'registry-url': 'https://registry.npmjs.org',
         },
       });
     }
-    if (want(Tool.DOTNET)) {
+    if (want('dotnet')) {
       steps.push({
         name: 'Setup DotNet',
-        uses: av.setupDotnet ?? 'actions/setup-dotnet@v4.3.1',
+        uses: 'actions/setup-dotnet@v4.3.1',
         with: {
           'dotnet-version': tv.dotnet ?? '8.0.x',
         },
       });
     }
-    if (want(Tool.PYTHON)) {
+    if (want('python')) {
       steps.push({
         name: 'Setup Python',
-        uses: av.setupPython ?? 'actions/setup-python@v5.6.0',
+        uses: 'actions/setup-python@v5.6.0',
         with: {
           'python-version': tv.python ?? '3.11.8',
         },
       });
     }
-    if (want(Tool.JAVA)) {
+    if (want('java')) {
       steps.push({
         name: 'Setup Java',
-        uses: av.setupJava ?? 'actions/setup-java@v4.7.1',
+        uses: 'actions/setup-java@v4.7.1',
         with: {
           cache: 'gradle',
           distribution: 'temurin',
@@ -151,7 +122,7 @@ export class ProviderActions {
       });
       steps.push({
         name: 'Setup Gradle',
-        uses: av.setupGradle ?? 'gradle/actions/setup-gradle@v4.4.2',
+        uses: 'gradle/actions/setup-gradle@v4.4.2',
         with: {
           'gradle-version': tv.gradle ?? '7.6',
         },
@@ -163,13 +134,11 @@ export class ProviderActions {
   /**
    * Upload prerequisites artifacts (bin/* and optional schema-embed.json)
    */
-  public static uploadPrerequisites(options: {
-    provider: string;
-    noSchema?: boolean;
-    versions?: ProviderActionVersions;
-  }): JobStep[] {
-    const upload =
-      options.versions?.uploadArtifact ?? 'actions/upload-artifact@v4';
+  public static uploadPrerequisites(
+    provider: string,
+    noSchema?: boolean,
+  ): JobStep[] {
+    const upload = 'actions/upload-artifact@v4';
     const steps: JobStep[] = [
       {
         name: 'Capture executable permissions',
@@ -186,13 +155,13 @@ export class ProviderActions {
         },
       },
     ];
-    if (!options.noSchema) {
+    if (!noSchema) {
       steps.push({
         name: 'Upload schema-embed.json',
         uses: upload,
         with: {
           name: 'schema-embed.json',
-          path: `provider/cmd/pulumi-resource-${options.provider}/schema-embed.json`,
+          path: `provider/cmd/pulumi-resource-${provider}/schema-embed.json`,
           'retention-days': 30,
         },
       });
@@ -203,13 +172,11 @@ export class ProviderActions {
   /**
    * Download prerequisites artifacts and restore permissions, optionally schema.
    */
-  public static downloadPrerequisites(options: {
-    provider: string;
-    noSchema?: boolean;
-    versions?: ProviderActionVersions;
-  }): JobStep[] {
-    const download =
-      options.versions?.downloadArtifact ?? 'actions/download-artifact@v4';
+  public static downloadPrerequisites(
+    provider: string,
+    noSchema?: boolean,
+  ): JobStep[] {
+    const download = 'actions/download-artifact@v4';
     const steps: JobStep[] = [
       {
         name: 'Download the prerequisites bin',
@@ -230,7 +197,7 @@ export class ProviderActions {
         run: 'rm bin/executables.txt',
       },
     ];
-    if (!options.noSchema) {
+    if (!noSchema) {
       steps.push({
         name: 'Download schema-embed.json',
         uses: download,
@@ -238,7 +205,7 @@ export class ProviderActions {
           // pattern mode to avoid failure if artifact is missing
           pattern: 'schema-embed.*',
           'merge-multiple': true,
-          path: `provider/cmd/pulumi-resource-${options.provider}`,
+          path: `provider/cmd/pulumi-resource-${provider}`,
         },
       });
     }
@@ -248,31 +215,27 @@ export class ProviderActions {
   /**
    * Download provider tarball artifact and extract it; chmod binaries.
    */
-  public static downloadProvider(options: {
-    provider: string;
-    versions?: ProviderActionVersions;
-  }): JobStep[] {
-    const download =
-      options.versions?.downloadArtifact ?? 'actions/download-artifact@v4';
+  public static downloadProvider(provider: string): JobStep[] {
+    const download = 'actions/download-artifact@v4';
     return [
       {
-        name: `Download pulumi-resource-${options.provider}`,
+        name: `Download pulumi-resource-${provider}`,
         uses: download,
         with: {
-          pattern: `pulumi-resource-${options.provider}-*-linux-amd64.tar.gz`,
+          pattern: `pulumi-resource-${provider}-*-linux-amd64.tar.gz`,
           path: '${{ github.workspace }}/bin',
           'merge-multiple': true,
         },
       },
       {
-        name: `Untar pulumi-resource-${options.provider}`,
+        name: `Untar pulumi-resource-${provider}`,
         shell: 'bash',
         run: 'tar -zxf ${{ github.workspace }}/bin/*amd64.tar.gz -C ${{ github.workspace}}/bin',
       },
       {
-        name: `Mark pulumi-resource-${options.provider} as executable`,
+        name: `Mark pulumi-resource-${provider} as executable`,
         shell: 'bash',
-        run: `find $\{{ github.workspace }} -name "pulumi-*-${options.provider}" -print -exec chmod +x {} \;`,
+        run: `find $\{{ github.workspace }} -name "pulumi-*-${provider}" -print -exec chmod +x {} \;`,
       },
     ];
   }
@@ -280,24 +243,20 @@ export class ProviderActions {
   /**
    * Upload a language SDK tarball from sdk/<lang>.
    */
-  public static uploadSdk(options: {
-    language: 'nodejs' | 'python' | 'dotnet' | 'go' | 'java';
-    versions?: ProviderActionVersions;
-  }): JobStep[] {
-    const upload =
-      options.versions?.uploadArtifact ?? 'actions/upload-artifact@v4';
+  public static uploadSdk(language: string): JobStep[] {
+    const upload = 'actions/upload-artifact@v4';
     return [
       {
         name: 'Compress SDK folder',
         shell: 'bash',
-        run: `tar -zcf sdk/${options.language}.tar.gz -C sdk/${options.language} .`,
+        run: `tar -zcf sdk/${language}.tar.gz -C sdk/${language} .`,
       },
       {
         name: 'Upload artifacts',
         uses: upload,
         with: {
-          name: `${options.language}-sdk.tar.gz`,
-          path: `$\{{ github.workspace}}/sdk/${options.language}.tar.gz`,
+          name: `${language}-sdk.tar.gz`,
+          path: `$\{{ github.workspace}}/sdk/${language}.tar.gz`,
           'retention-days': 30,
         },
       },
@@ -307,25 +266,21 @@ export class ProviderActions {
   /**
    * Download a language SDK tarball into sdk/<lang> and extract it.
    */
-  public static downloadSdk(options: {
-    language: 'nodejs' | 'python' | 'dotnet' | 'go' | 'java';
-    versions?: ProviderActionVersions;
-  }): JobStep[] {
-    const download =
-      options.versions?.downloadArtifact ?? 'actions/download-artifact@v4';
+  public static downloadSdk(language: string): JobStep[] {
+    const download = 'actions/download-artifact@v4';
     return [
       {
         name: 'Download SDK',
         uses: download,
         with: {
-          name: `${options.language}-sdk.tar.gz`,
+          name: `${language}-sdk.tar.gz`,
           path: '${{ github.workspace}}/sdk/',
         },
       },
       {
         name: 'Uncompress SDK folder',
         shell: 'bash',
-        run: `mkdir -p sdk/${options.language} && tar -zxf $GITHUB_WORKSPACE/sdk/${options.language}.tar.gz -C $GITHUB_WORKSPACE/sdk/${options.language}`,
+        run: `mkdir -p sdk/${language} && tar -zxf $GITHUB_WORKSPACE/sdk/${language}.tar.gz -C $GITHUB_WORKSPACE/sdk/${language}`,
       },
     ];
   }

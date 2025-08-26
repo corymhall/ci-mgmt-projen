@@ -1,49 +1,53 @@
 import { Component, Project } from 'projen/lib';
+import { GitHub, GithubWorkflow } from 'projen/lib/github';
+import { ProviderWorkflowOptions } from './common';
+import { BuildProviderJob } from './jobs/build-provider-job';
+import { BuildSdkJob } from './jobs/build-sdk-job';
 import {
-  GitHub,
-  GitHubProject,
-  GitHubProjectOptions,
-  GithubWorkflow,
-} from 'projen/lib/github';
-import { prerequisitesJob } from './jobs/PrerequisitesJob';
+  PrerequisitesJob,
+  PrerequisitesJobOptions,
+} from './jobs/prerequisites-job';
+import { TestJob, TestJobOptions } from './jobs/test-job';
 
-export interface RunAcceptanceTestsWorkflowOptions {
+export interface RunAcceptanceTestsWorkflowOptions
+  extends ProviderWorkflowOptions {
+  /**
+   * organization is the name of the Github organization the repository lives in.
+   *
+   * @default pulumi
+   */
   readonly organization?: string;
-  readonly provider: string;
-  readonly majorVersion?: string;
-  readonly noSchema?: boolean;
-  readonly registryDocs?: boolean;
+
+  /**
+   * major version of the current provider - used in make files
+   * This should always be set by all providers as this is key to go module paths.
+   *
+   * @default 2
+   */
+  readonly majorVersion?: number;
+
+  /**
+   * Options for the test job
+   */
+  readonly testOptions?: TestJobOptions;
+
+  /**
+   * Options for the prereq job
+   */
+  readonly prerequisiteJobOptions?: PrerequisitesJobOptions;
+
   readonly enableConfigurationCheck?: boolean;
-  readonly actionVersions?: {
-    readonly freeDiskSpace?: string; // e.g. dflook/ free-disk-space-action@v1
-    readonly checkout?: string; // actions/checkout@v4
-    readonly providerVersion?: string; // pulumi/provider-version-action@v1
-    readonly codecov?: string; // codecov/codecov-action@v4
-    readonly prComment?: string; // example: marocchino/sticky-pull-request-comment@v2
-  };
 
   /**
    * Environment variables for the job
    */
   readonly env?: Record<string, string>;
-  readonly runner?: {
-    /**
-     * Runner to use for the prerequisites job
-     * @default 'ubuntu-latest'
-     */
-    readonly prerequisitesRunner?: string;
-  };
   /**
    * Whether or not to run the free disk space action before the build step
+   *
    * @default false
    */
   readonly freeDiskSpaceBeforeBuild?: boolean;
-
-  /**
-   * Whether or not to checkout submodules
-   * @default false
-   */
-  readonly checkoutSubmodules?: boolean;
 }
 
 export class RunAcceptanceTestsWorkflow extends Component {
@@ -60,8 +64,17 @@ export class RunAcceptanceTestsWorkflow extends Component {
         'RunAcceptanceTestsWorkflow is currently only supported for GitHub projects',
       );
     }
+    const languages = options.languages ?? [
+      'nodejs',
+      'python',
+      'dotnet',
+      'go',
+      'java',
+    ];
+    const majorVersion = options.majorVersion ?? 2;
+    const organization = options.organization ?? 'pulumi';
 
-    this.workflow = new GithubWorkflow(github, 'run-acceptance-tests');
+    this.workflow = new GithubWorkflow(github, 'run-acceptance-tests2');
     this.workflow.on({
       pullRequest: {},
       repositoryDispatch: {
@@ -69,26 +82,83 @@ export class RunAcceptanceTestsWorkflow extends Component {
       },
     });
 
-    const prereqJob = prerequisitesJob({
-      organization: options.organization,
+    const prerequisites = PrerequisitesJob.render({
+      organization: organization,
       provider: options.provider,
-      majorVersion: options.majorVersion,
+      majorVersion: majorVersion,
       noSchema: options.noSchema,
-      registryDocs: options.registryDocs,
-      enableConfigurationCheck: options.enableConfigurationCheck,
-      actionVersions: options.actionVersions,
       env: options.env,
-      runner: options.runner,
       freeDiskSpaceBeforeBuild: options.freeDiskSpaceBeforeBuild,
       checkoutSubmodules: options.checkoutSubmodules,
+      ...options.prerequisiteJobOptions,
     });
 
-    this.workflow.addJobs({ prerequisites: prereqJob });
+    this.workflow.addJob(PrerequisitesJob.id, prerequisites);
+
+    this.workflow.addJob(
+      BuildProviderJob.id,
+      BuildProviderJob.render({
+        provider: options.provider,
+        modulePath: 'provider',
+        providerVersion: PrerequisitesJob.outputs().version,
+        noSchema: options.noSchema,
+        checkoutSubmodules: options.checkoutSubmodules,
+        needs: [PrerequisitesJob.id],
+      }),
+    );
+
+    if (!options.noSchema) {
+      this.workflow.addJob(
+        BuildSdkJob.id,
+        BuildSdkJob.render({
+          needs: [PrerequisitesJob.id],
+          providerVersion: PrerequisitesJob.outputs().version,
+          env: options.env,
+          provider: options.provider,
+          checkoutSubmodules: options.checkoutSubmodules,
+          freeDiskSpaceBeforeBuild: options.freeDiskSpaceBeforeBuild,
+        }),
+      );
+    }
+
+    this.workflow.addJob(
+      TestJob.id,
+      TestJob.render({
+        provider: options.provider,
+        needs: [
+          PrerequisitesJob.id,
+          BuildProviderJob.id,
+          ...(!options.noSchema ? [BuildSdkJob.id] : []),
+        ],
+        checkoutSubmodules: options.checkoutSubmodules,
+        env: options.env,
+        freeDiskSpaceBeforeBuild: options.freeDiskSpaceBeforeBuild,
+        languages,
+        noSchema: options.noSchema,
+        ...options.testOptions,
+      }),
+    );
   }
 }
 
-export class ProviderProject extends GitHubProject {
-  constructor(options: GitHubProjectOptions) {
-    super(options);
+export interface ProviderProjectOptions {
+  readonly name: string;
+  readonly acceptanceTestsWorkflowOptions: RunAcceptanceTestsWorkflowOptions;
+}
+
+export class ProviderProject extends Project {
+  constructor(options: ProviderProjectOptions) {
+    super({
+      name: options.name,
+    });
+    new GitHub(this, {
+      mergify: false,
+      pullRequestLint: false,
+    });
+    new RunAcceptanceTestsWorkflow(
+      this,
+      'run-acceptance-tests',
+      options.acceptanceTestsWorkflowOptions,
+    );
   }
 }
